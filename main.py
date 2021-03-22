@@ -1,3 +1,13 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage.segmentation import felzenszwalb
+from skimage.segmentation import mark_boundaries
+from skimage import measure
+from PIL import Image
+import random
+import scipy.io as sio
+
+
 def compute_features(region_array):
     '''Compute the feature vector per region/superpixel'''
     unique_regions = list(np.unique(region_array))
@@ -8,6 +18,34 @@ def compute_features(region_array):
 def similarity(reg_a, reg_b, feature_dict):
     '''Compute the similarity of two regions based on the feature dictionary'''
     return np.sum(feature_dict[reg_a]*feature_dict[reg_b])
+
+
+def load_annotation(path):
+    '''Load the Matlab annotation file and return a python dict'''
+
+    data = sio.loadmat(path)
+
+    X = data['imsegs'][0]
+    N = X.shape[0]
+    d = {}
+    for n in range(N):
+        param = {}
+        file_name = X[n][0][0]
+
+        param['seg_image'] = X[n][2]
+        param['npixels'] = X[n][4]
+        param['vlabels'] = X[n][6]
+        param['hlabels'] = X[n][7]
+        param['labels'] = X[n][8]
+        param['vert_labels'] = X[n][9]
+        param['horz_labels'] = X[n][10]
+        param['label_names'] = X[n][11]
+        param['vert_names'] = X[n][12]
+        param['horz_names'] = X[n][13]
+
+        d[file_name] = param
+
+    return d
 
 
 def segmentation(image, k_sel=32, n_iterations=50):
