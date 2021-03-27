@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from skimage.segmentation import felzenszwalb
 from skimage.segmentation import mark_boundaries
 from skimage import measure
+from skimage.color import rgb2hsv
 from PIL import Image
 import random
 import scipy.io as sio
@@ -14,8 +15,8 @@ class Features():
 
         self.region_array = region_array
         self.image = image
+        self.hsv_image = rgb2hsv(self.image)
         self.d_features = {}  # dict of features
-
         self.region_prop = {}
 
     def compute_features(self):
@@ -23,21 +24,34 @@ class Features():
 
         # Update region_prop
         self.update_region_prop()
+        # Reset the region feature vector
+        self.d_features = {}
 
         for region in self.region_prop:
 
             label = region.label
             coords = region.coords
             pix_intensity = self.image[coords[:, 0], coords[:, 1], :]
+            pix_intensity_hsv = self.hsv_image[coords[:, 0], coords[:, 1], :]
 
+            # RGB mean values
             mean_intensity_r = np.mean(pix_intensity[:, 0])/255.
             mean_intensity_g = np.mean(pix_intensity[:, 1])/255.
             mean_intensity_b = np.mean(pix_intensity[:, 2])/255.
+
+            # HSV mean values
+            mean_intensity_h = np.mean(pix_intensity_hsv[:, 0])
+            mean_intensity_s = np.mean(pix_intensity_hsv[:, 1])
+            mean_intensity_v = np.mean(pix_intensity_hsv[:, 2])
+
+            # Coords mean values
             mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
             mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
 
+            # DOOG Filters mean abs response of 12 filters
+
             self.d_features[label] = np.array([
-                mean_coords_x, mean_coords_y, mean_intensity_r, mean_intensity_g, mean_intensity_b])
+                mean_coords_x, mean_coords_y, mean_intensity_r, mean_intensity_g, mean_intensity_b, mean_intensity_h, mean_intensity_s, mean_intensity_v])
 
     def update_region_prop(self):
         self.region_prop = measure.regionprops(self.region_array)
@@ -52,30 +66,10 @@ def compute_features(region_array):
 
 def similarity(reg_a, reg_b, feature_dict):
     '''Compute the similarity of two regions based on the feature dictionary'''
+
+    # It should be a learned pairwise affinity function
+    # It should be a ML model that gives a probability/similarity
     return -np.sum(np.abs(feature_dict[reg_a]-feature_dict[reg_b]))
-
-
-def load_annotation(path):
-    '''Load the Matlab annotation file and return a python dict'''
-    data = sio.loadmat(path)
-    X = data['imsegs'][0]
-    N = X.shape[0]
-    d = {}
-    for n in range(N):
-        param = {}
-        file_name = X[n][0][0]
-        param['seg_image'] = X[n][2]
-        param['npixels'] = X[n][4]
-        param['vlabels'] = X[n][6]
-        param['hlabels'] = X[n][7]
-        param['labels'] = X[n][8]
-        param['vert_labels'] = X[n][9]
-        param['horz_labels'] = X[n][10]
-        param['label_names'] = X[n][11]
-        param['vert_names'] = X[n][12]
-        param['horz_names'] = X[n][13]
-        d[file_name] = param
-    return d
 
 
 def segmentation(image, k_sel=32):
