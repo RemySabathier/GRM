@@ -8,6 +8,41 @@ import random
 import scipy.io as sio
 
 
+class Features():
+
+    def __init__(self, region_array, image):
+
+        self.region_array = region_array
+        self.image = image
+        self.d_features = {}  # dict of features
+
+        self.region_prop = {}
+
+    def compute_features(self):
+        '''Compute the feature vector for each region'''
+
+        # Update region_prop
+        self.update_region_prop()
+
+        for region in self.region_prop:
+
+            label = region.label
+            coords = region.coords
+            pix_intensity = self.image[coords[:, 0], coords[:, 1], :]
+
+            mean_intensity_r = np.mean(pix_intensity[:, 0])/255.
+            mean_intensity_g = np.mean(pix_intensity[:, 1])/255.
+            mean_intensity_b = np.mean(pix_intensity[:, 2])/255.
+            mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
+            mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
+
+            self.d_features[label] = np.array([
+                mean_coords_x, mean_coords_y, mean_intensity_r, mean_intensity_g, mean_intensity_b])
+
+    def update_region_prop(self):
+        self.region_prop = measure.regionprops(self.region_array)
+
+
 def compute_features(region_array):
     '''Compute the feature vector per region/superpixel'''
     unique_regions = list(np.unique(region_array))
@@ -17,21 +52,18 @@ def compute_features(region_array):
 
 def similarity(reg_a, reg_b, feature_dict):
     '''Compute the similarity of two regions based on the feature dictionary'''
-    return np.sum(feature_dict[reg_a]*feature_dict[reg_b])
+    return -np.sum(np.abs(feature_dict[reg_a]-feature_dict[reg_b]))
 
 
 def load_annotation(path):
     '''Load the Matlab annotation file and return a python dict'''
-
     data = sio.loadmat(path)
-
     X = data['imsegs'][0]
     N = X.shape[0]
     d = {}
     for n in range(N):
         param = {}
         file_name = X[n][0][0]
-
         param['seg_image'] = X[n][2]
         param['npixels'] = X[n][4]
         param['vlabels'] = X[n][6]
@@ -42,20 +74,22 @@ def load_annotation(path):
         param['label_names'] = X[n][11]
         param['vert_names'] = X[n][12]
         param['horz_names'] = X[n][13]
-
         d[file_name] = param
-
     return d
 
 
-def segmentation(image, k_sel=32, n_iterations=50):
+def segmentation(image, k_sel=32):
     '''Main function to compute the segmentation'''
 
     # Array storing the region of pixels
+    image = np.array(image)
     region_map = np.zeros((image.shape[0], image.shape[1]))
 
     # First step : Generate superpixels
-    segments_sp = felzenszwalb(image, scale=100, sigma=0.1, min_size=1000)
+    segments_sp = 1 + felzenszwalb(image, scale=100, sigma=0.1, min_size=1000)
+
+    # Instanciate Feature Object storing feature vectors of each superpixel
+    feat_store = Features(segments_sp, image)
 
     # Boolean to monitor the termination
     change = True
@@ -65,7 +99,7 @@ def segmentation(image, k_sel=32, n_iterations=50):
         change = False
 
         # Compute the feature dict of each region
-        d_feat = compute_features(segments_sp)
+        feat_store.compute_features()
 
         # Randomly order them and assign the first k to different regions
         unique = np.unique(segments_sp)
@@ -75,7 +109,7 @@ def segmentation(image, k_sel=32, n_iterations=50):
         # Dict storing the new regions
         d_new_reg = {r: r for r in random_reg}
         for r_sp in remaining_sp:
-            d_new_reg[r_sp] = sorted([(similarity(r_sp, x, d_feat), x)
+            d_new_reg[r_sp] = sorted([(similarity(r_sp, x, feat_store.d_features), x)
                                       for x in random_reg], key=lambda tup: tup[0])[-1][1]
 
         for k in d_new_reg:
@@ -85,3 +119,18 @@ def segmentation(image, k_sel=32, n_iterations=50):
                     segments_sp == k, d_new_reg[k], segments_sp)
 
     return segments_sp
+
+
+if __name__ == '__main__':
+
+    # Open the image
+    path_test = 'dataset/structure31.jpg'
+    image = Image.open(path_test)
+
+    # Compute the segmentation
+    X = segmentation(image, k_sel=5)
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.subplot(1, 2, 2)
+    plt.imshow(X)
+    plt.show()
