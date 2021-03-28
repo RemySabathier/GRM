@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     dataset_path = 'dataset'
     annotation_path = r'dataset\allimsegs2.mat'
-    size = 10
+    size = 300
 
     # Step 1: Create a dataset of same-label and different-label superpixels
     annotations = load_annotation(annotation_path)
@@ -80,5 +80,5 @@ if __name__ == '__main__':
     # Save the dataset into .npy format
     X_train = np.array(training_data_X)
     y_train = np.array(training_data_y)
-    np.save('X_train.npy', X_train)
-    np.save('y_train.npy', y_train)
+    np.save('X_train300.npy', X_train)
+    np.save('y_train300.npy', y_train)
