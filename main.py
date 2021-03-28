@@ -7,17 +7,22 @@ from skimage.color import rgb2hsv
 from PIL import Image
 import random
 import scipy.io as sio
+import pickle
 
 
 class Features():
 
-    def __init__(self, region_array, image):
+    def __init__(self, region_array, image, model_1_path):
 
         self.region_array = region_array
         self.image = image
         self.hsv_image = rgb2hsv(self.image)
         self.d_features = {}  # dict of features
         self.region_prop = {}
+
+        # Load the first model for similarity computation
+        with open(model_1_path, 'rb') as f:
+            self.model_1 = pickle.load(f)
 
     def compute_features(self):
         '''Compute the feature vector for each region'''
@@ -56,20 +61,12 @@ class Features():
     def update_region_prop(self):
         self.region_prop = measure.regionprops(self.region_array)
 
-
-def compute_features(region_array):
-    '''Compute the feature vector per region/superpixel'''
-    unique_regions = list(np.unique(region_array))
-    d = {r: np.random.randn(10) for r in unique_regions}
-    return d
-
-
-def similarity(reg_a, reg_b, feature_dict):
-    '''Compute the similarity of two regions based on the feature dictionary'''
-
-    # It should be a learned pairwise affinity function
-    # It should be a ML model that gives a probability/similarity
-    return -np.sum(np.abs(feature_dict[reg_a]-feature_dict[reg_b]))
+    def similarity(self, reg_a, reg_b):
+        '''Compute the similarity of two regions based on the feature dictionary'''
+        # It should be a learned pairwise affinity function
+        # It should be a ML model that gives a probability/similarity
+        return self.model_1.predict_proba(
+            np.abs(self.d_features[reg_a]-self.d_features[reg_b]).reshape((1, -1)))[0][1]
 
 
 def segmentation(image, k_sel=32):
@@ -83,7 +80,7 @@ def segmentation(image, k_sel=32):
     segments_sp = 1 + felzenszwalb(image, scale=100, sigma=0.1, min_size=1000)
 
     # Instanciate Feature Object storing feature vectors of each superpixel
-    feat_store = Features(segments_sp, image)
+    feat_store = Features(segments_sp, image, 'model_1.pk')
 
     # Boolean to monitor the termination
     change = True
@@ -103,7 +100,7 @@ def segmentation(image, k_sel=32):
         # Dict storing the new regions
         d_new_reg = {r: r for r in random_reg}
         for r_sp in remaining_sp:
-            d_new_reg[r_sp] = sorted([(similarity(r_sp, x, feat_store.d_features), x)
+            d_new_reg[r_sp] = sorted([(feat_store.similarity(r_sp, x), x)
                                       for x in random_reg], key=lambda tup: tup[0])[-1][1]
 
         for k in d_new_reg:
@@ -122,7 +119,7 @@ if __name__ == '__main__':
     image = Image.open(path_test)
 
     # Compute the segmentation
-    X = segmentation(image, k_sel=5)
+    X = segmentation(image, k_sel=4)
     plt.subplot(1, 2, 1)
     plt.imshow(image)
     plt.subplot(1, 2, 2)
