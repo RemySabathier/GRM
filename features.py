@@ -16,8 +16,8 @@ import pickle
 from scipy.stats import entropy
 import matplotlib.colors as mcolors
 from matplotlib import cm
-
-from utils import ang
+import math
+from utils import ang, line_intersection
 
 class Features():
 
@@ -208,21 +208,41 @@ class Regions():
 
             # 3D Geometry
             
-            image = region["image"]
-            edges = canny(image, 2, 1, 25)
+            image_region = region["image"]
+            edges = canny(image_region, 2, 1, 25)
             lines = probabilistic_hough_line(edges, threshold=10, line_length=10,
                                             line_gap=3)
+            (x_length, y_length) = image_region.shape
             # G1. Total number of straight lines
             G1 = len(lines)
             # G2. % of nearly parallel pairs of lines
             total = 0
             nearly_par = 0
+            intsctn, right_inter, up_inter, far_inter, very_far_inter  = [], [], [], [], []
             for lineA in lines:
                 for lineB in lines:
                     if ang(lineA, lineB) <= 5:
                         nearly_par += 1
                     total += 1
+                    intr= line_intersection(lineA, lineB)
+                    intscn.append(intr)
+                    if intr[0]>0:
+                        right_inter.append(intr)
+                    if intr[1]>0:
+                        up_inter.append(intr)
+                    if intr[0]**2 + intr[1]**2 > x_length**2 + y_length**2:
+                        far_inter.append(intr)
+                    if intr[0]**2 + intr[1]**2 >3*( x_length**2 + y_length**2):
+                        very_far_inter.append(intr)
+
             G2 = nearly_par/total
+            G3 = total
+            G4 = len(right_inter)/total
+            G5 = len(up_inter)/total
+            G6 = len(far_inter)/total
+            G7 = len(very_far_inter)/total
+
+
 
         return d_features
 
