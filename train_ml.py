@@ -51,13 +51,14 @@ if __name__ == '__main__':
     for img_path in tqdm(annotations):
 
         image = np.array(Image.open(os.path.join(dataset_path, img_path)))
+        initial_superpixel = annotations[img_path]['seg_image']
 
-        feature_store = Features(annotations[img_path]['seg_image'], image)
-        feature_store.compute_features()
+        feature_store = Features(initial_superpixel, image,model_1_path=None)        
+        d_features = feature_store.compute_features()
 
         # Extract the feature vector and the label for each superpixel in the image
-        X = np.array([feature_store.d_features[i]
-                      for i in range(1, len(feature_store.d_features)+1)])
+        X = np.array([d_features[i]
+                      for i in range(1, len(d_features)+1)])
         y = annotations[img_path]['labels'].flatten()
         N = X.shape[0]
 

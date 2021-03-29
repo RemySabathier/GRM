@@ -19,18 +19,18 @@ from sklearn.dummy import DummyClassifier
 
 if __name__ == '__main__':
 
-    X = np.load('X_train300.npy').reshape((-1, 8))
+    X = np.load('X_train300.npy')
+    X = X.reshape((-1,X.shape[-1]))
     y = np.load('y_train300.npy').flatten()
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, train_size=0.8, random_state=42, stratify=y)
 
-    clf = LogisticRegression()
+    clf = LogisticRegression(max_iter=10000)
     # clf = AdaBoostClassifier(
     #    base_estimator=LogisticRegression(), n_estimators=10)
     clf.fit(X_train, y_train)
 
-    
     #Dummy clf for comparison
     dummy_clf = DummyClassifier(strategy="prior")
     dummy_clf.fit(X_train, y_train)
