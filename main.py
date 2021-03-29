@@ -12,6 +12,8 @@ import pickle
 from scipy.stats import entropy
 import matplotlib.colors as mcolors
 from matplotlib import cm
+from skimage.filters import difference_of_gaussians
+from utils import get_doog_filter_list, compute_filter_response
 
 class Features():
 
@@ -22,11 +24,21 @@ class Features():
         self.hsv_image = rgb2hsv(self.image)
 
         # Load the first model for similarity computation
-        with open(model_1_path, 'rb') as f:
-            self.model_1 = pickle.load(f)
+        if model_1_path:
+            with open(model_1_path, 'rb') as f:
+                self.model_1 = pickle.load(f)
+        else:
+            self.model_1 = None 
+        
+        #Load the DooG filter list
+        self.doog_filters = get_doog_filter_list()
+        self.doog_response = compute_filter_response(self.doog_filters,self.image)
 
-    def compute_features(self, region_props):
+    def compute_features(self, region_props=None):
         '''Compute the feature vector for each region'''
+
+        if not region_props:
+            region_props = self.compute_region_prop(self.superpixel_array)
 
         # Reset the region feature vector
         d_features = {}
@@ -38,24 +50,34 @@ class Features():
             pix_intensity = self.image[coords[:, 0], coords[:, 1], :]
             pix_intensity_hsv = self.hsv_image[coords[:, 0], coords[:, 1], :]
 
-            # RGB mean values
+            d_features[label] = []
+
+            # Coords mean values
+            mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
+            mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
+            d_features[label].extend([mean_coords_x,mean_coords_y])
+
+            # RGB mean values   
             mean_intensity_r = np.mean(pix_intensity[:, 0])/255.
             mean_intensity_g = np.mean(pix_intensity[:, 1])/255.
             mean_intensity_b = np.mean(pix_intensity[:, 2])/255.
+            d_features[label].extend([mean_intensity_r,mean_intensity_g,mean_intensity_b])
 
             # HSV mean values
             mean_intensity_h = np.mean(pix_intensity_hsv[:, 0])
             mean_intensity_s = np.mean(pix_intensity_hsv[:, 1])
             mean_intensity_v = np.mean(pix_intensity_hsv[:, 2])
-
-            # Coords mean values
-            mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
-            mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
+            d_features[label].extend([mean_intensity_h,mean_intensity_s,mean_intensity_v])
 
             # DOOG Filters mean abs response of 12 filters
-
-            d_features[label] = np.array([
-                mean_coords_x, mean_coords_y, mean_intensity_r, mean_intensity_g, mean_intensity_b, mean_intensity_h, mean_intensity_s, mean_intensity_v])
+            doog_response = self.doog_response[:,coords[:,0],coords[:,1]]
+            doog_mean_response = np.mean(doog_response,axis=1)
+            dog_global_mean = np.mean(doog_mean_response)
+            dog_argmax = np.argmax(doog_mean_response)
+            dog_stats = np.max(doog_mean_response) - np.median(doog_response)   
+            d_features[label].extend(list(doog_mean_response)+[dog_global_mean,dog_argmax,dog_stats])
+            
+            d_features[label] = np.array(d_features[label])
 
         return d_features
 
@@ -202,7 +224,7 @@ def global_prediction(image,superpixels,prediction_dict):
 if __name__ == '__main__':
 
     # Open the image
-    path_test = 'dataset/city09.jpg' #'dataset/structure31.jpg'
+    path_test = 'dataset_test\city10.jpg' #'dataset/structure31.jpg'
     model_1_path = 'model_1.pk'
     model_global_path = 'model_general.pk'
     model_vertical_path = 'model_vertical.pk'
