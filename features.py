@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from skimage.segmentation import felzenszwalb
 from skimage.segmentation import mark_boundaries
 from skimage.morphology import convex_hull_image
+from skimage.transform import probabilistic_hough_line
+from skimage.feature import canny
 from skimage.util import invert
 from skimage.color import label2rgb
 from skimage import measure
@@ -14,6 +16,8 @@ import pickle
 from scipy.stats import entropy
 import matplotlib.colors as mcolors
 from matplotlib import cm
+
+from utils import ang
 
 class Features():
 
@@ -199,7 +203,26 @@ class Regions():
             L5 = len(contours)
 
             # L7. Wheter the region is contiguous (0 or 1)
-            l7 = self.is_contiguous[region.label]
+            L7 = self.is_contiguous[region.label]
+            print(L7)
+
+            # 3D Geometry
+            
+            image = region["image"]
+            edges = canny(image, 2, 1, 25)
+            lines = probabilistic_hough_line(edges, threshold=10, line_length=10,
+                                            line_gap=3)
+            # G1. Total number of straight lines
+            G1 = len(lines)
+            # G2. % of nearly parallel pairs of lines
+            total = 0
+            nearly_par = 0
+            for lineA in lines:
+                for lineB in lines:
+                    if ang(lineA, lineB) <= 5:
+                        nearly_par += 1
+                    total += 1
+            G2 = nearly_par/total
 
         return d_features
 
