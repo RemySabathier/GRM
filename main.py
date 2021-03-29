@@ -10,7 +10,8 @@ import random
 import scipy.io as sio
 import pickle
 from scipy.stats import entropy
-
+import matplotlib.colors as mcolors
+from matplotlib import cm
 
 class Features():
 
@@ -180,35 +181,112 @@ class Regions():
         return d_features
 
 
+## Visualization Function ##
+def global_prediction(image,superpixels,prediction_dict):
+    '''Compute the vizual output of the global prediction'''
+
+    output = np.zeros_like(superpixels)
+
+    colors = [(0, "green"), (1/2, "red"), (2/2, 'blue')]
+    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
+    alpha = 0.4
+
+    for sp in np.unique(superpixels):
+        sp_prediction = np.argmax(prediction_dict[sp])/2
+        output = np.where(superpixels==sp,sp_prediction,output)
+    
+    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255.
+
+
+
 if __name__ == '__main__':
 
     # Open the image
-    path_test = 'dataset/structure31.jpg'
+    path_test = 'dataset/city09.jpg' #'dataset/structure31.jpg'
     model_1_path = 'model_1.pk'
+    model_global_path = 'model_general.pk'
+    model_vertical_path = 'model_vertical.pk'
     image = np.array(Image.open(path_test))
+
+    #Hyperparameters
+    nb_hypothesis = 5
+    number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
+
+    list_hypothesis = random.sample(number_regions_hypothesis,nb_hypothesis)
+
+    # Load the global model 
+    with open(model_global_path, 'rb') as f:
+        model_global = pickle.load(f)
 
     # Compute a set of superpixels
     superpixels = 1 + felzenszwalb(image, scale=3., sigma=0.9, min_size=1000)
+
+
+    #For each superpixel, store a score per global region
+    superpixel_score = {k:[] for k in np.unique(superpixels)}
+
 
     # Initialize the class to compute regions
     fr = Features(superpixels, image, model_1_path)
 
     # Compute a set of region segmentation with *k_sel* regions
-    seg_list = [fr.segmentation(k_sel=7) for _ in range(2)]
+    seg_list = [fr.segmentation(k_sel=k) for k in list_hypothesis]
 
     # Next: Create a class to compute features on region
-    reg = Regions(seg_list[0], image)
-    F = reg.compute_features()
+    reg_list = [Regions(seg, image) for seg in seg_list]
 
-    # Estimate the likelihood of a class to be homogenous
+    for regions in reg_list:
 
-    # Estimate the class of a region1
+        # For each region, return list of superpixels inside
+        d_sp_in_r = regions.compute_region_sp_list(superpixels)
+
+        # Compute feature vector for each region
+        feat_dict = regions.compute_features()
+
+        # Estimate the likelihood of a class to be homogenous
+        predict_proba_classes_general = {k:model_global.predict_proba(feat_dict[k].reshape(1,-1))[0] for k in feat_dict} 
+
+
+        #For each superpixel, look at in which region it is and add the proba_arrays to superpixel_score
+        for region in d_sp_in_r:
+            superpixels_inside = d_sp_in_r[region]
+
+            proba_vector = predict_proba_classes_general[region]
+            proba_vector[:3] = proba_vector[:3]/sum(proba_vector[:3])
+
+            for superpixel in superpixels_inside:
+                superpixel_score[superpixel].append(proba_vector)
+
+    
+    #Superpixel prediction
+    superpixels_pred = {}
+
+    #For each superpixel, compute the final score per region
+    for superpixel in superpixel_score:
+        homogeneity = [hypoth[-1] for hypoth in superpixel_score[superpixel]]
+        homogeneity = homogeneity/sum(homogeneity) #Normalize
+
+        #Compute the prediction per global class
+        prediction = np.array([h*label_prediction[:3] for h,label_prediction in zip(homogeneity,superpixel_score[superpixel])]).reshape((-1,3))
+        prediction = np.sum(prediction, axis=0)
+
+        superpixels_pred[superpixel] = prediction
+
+
+    # Vizualization of the global segmentation
+    global_output = global_prediction(image,superpixels, superpixels_pred)
 
     # Visualization
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, 4, 1)
+    plt.title('Superpixel Segmentation')
     plt.imshow(label2rgb(superpixels, image))
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 4, 2)
+    plt.title('Region Hypothesis 1')
     plt.imshow(label2rgb(seg_list[0], image))
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 4, 3)
+    plt.title('Region Hypothesis 2')
     plt.imshow(label2rgb(seg_list[1], image))
+    plt.subplot(1, 4, 4)
+    plt.title('Global Segmentation')
+    plt.imshow(global_output)
     plt.show()
