@@ -14,6 +14,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
 import pickle
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.dummy import DummyClassifier
 
 if __name__ == '__main__':
 
@@ -24,13 +26,20 @@ if __name__ == '__main__':
         X, y, train_size=0.8, random_state=42, stratify=y)
 
     clf = LogisticRegression()
-
+    # clf = AdaBoostClassifier(
+    #    base_estimator=LogisticRegression(), n_estimators=10)
     clf.fit(X_train, y_train)
+
+    
+    #Dummy clf for comparison
+    dummy_clf = DummyClassifier(strategy="prior")
+    dummy_clf.fit(X_train, y_train)
 
     y_pred = clf.predict(X_test)
 
     print('Mean Accuracy Train: {:.3f}'.format(clf.score(X_train, y_train)))
     print('Mean Accuracy Test: {:.3f}'.format(clf.score(X_test, y_test)))
+    print('Mean Accuracy Test (DUMMY): {:.3f}'.format(dummy_clf.score(X_test, y_test)))
 
     # Save the model as pickle file
     with open('model_1.pk', 'wb') as f:
