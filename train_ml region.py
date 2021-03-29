@@ -50,6 +50,12 @@ if __name__ == '__main__':
     annotations = load_annotation(annotation_path)
     N_img = len(annotations)  # Number of images
 
+    #Hyperparameters
+    nb_hypothesis = 5
+    number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
+
+    list_hypothesis = random.sample(number_regions_hypothesis,nb_hypothesis)
+
     training_data_X, training_data_y = [], []
 
     for img_path in tqdm(annotations):
@@ -60,7 +66,7 @@ if __name__ == '__main__':
         fr = Features(superpixel_array, image, model_1_path)
 
         # Compute a set of region segmentation with *k_sel* regions
-        seg_list = [fr.segmentation(k_sel=9) for _ in range(3)]
+        seg_list = [fr.segmentation(k_sel=k) for k in list_hypothesis]
 
         # Next: Create a list of regions classes per proposed segmentation
         reg_list = [Regions(seg, image) for seg in seg_list]

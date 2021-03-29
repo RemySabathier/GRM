@@ -169,37 +169,48 @@ class Regions():
             pix_intensity = self.image[coords[:, 0], coords[:, 1], :]
             pix_intensity_hsv = self.hsv_image[coords[:, 0], coords[:, 1], :]
 
-            # RGB mean values
+
+            d_features[label] = []
+
+            # Coords mean values
+            mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
+            mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
+            d_features[label].extend([mean_coords_x,mean_coords_y])
+
+            # RGB mean values   
             mean_intensity_r = np.mean(pix_intensity[:, 0])/255.
             mean_intensity_g = np.mean(pix_intensity[:, 1])/255.
             mean_intensity_b = np.mean(pix_intensity[:, 2])/255.
+            d_features[label].extend([mean_intensity_r,mean_intensity_g,mean_intensity_b])
 
             # HSV mean values
             mean_intensity_h = np.mean(pix_intensity_hsv[:, 0])
             mean_intensity_s = np.mean(pix_intensity_hsv[:, 1])
             mean_intensity_v = np.mean(pix_intensity_hsv[:, 2])
+            d_features[label].extend([mean_intensity_h,mean_intensity_s,mean_intensity_v])
 
-            # Coords mean values
-            mean_coords_x = np.mean(coords[:, 0])/self.image.shape[0]
-            mean_coords_y = np.mean(coords[:, 1])/self.image.shape[1]
-
+            # DOOG Filters mean abs response of 12 filters
+            doog_response = self.doog_response[:,coords[:,0],coords[:,1]]
+            doog_mean_response = np.mean(doog_response,axis=1)
+            dog_global_mean = np.mean(doog_mean_response)
+            dog_argmax = np.argmax(doog_mean_response)
+            dog_stats = np.max(doog_mean_response) - np.median(doog_response)   
+            d_features[label].extend(list(doog_mean_response)+[dog_global_mean,dog_argmax,dog_stats])
+            
             # Location percentile/number
             perc_10_coords_x = np.percentile(coords[:, 0], 10)
             perc_10_coords_y = np.percentile(coords[:, 1], 10)
             perc_90_coords_x = np.percentile(coords[:, 0], 90)
             perc_90_coords_y = np.percentile(coords[:, 1], 90)
+            d_features[label].extend([perc_10_coords_x,perc_10_coords_y,perc_90_coords_x,perc_90_coords_y])
 
             # Number of superpixels
             nb_superpixels = region.area
             perc_convex = region.convex_area/region.area
+            d_features[label].extend([nb_superpixels,perc_convex])
 
-            # DOOG Filters mean abs response of 12 filters
-
-            d_features[label] = np.array([
-                mean_coords_x, mean_coords_y, mean_intensity_r, mean_intensity_g, mean_intensity_b, mean_intensity_h, mean_intensity_s, mean_intensity_v,
-                perc_10_coords_x, perc_10_coords_y, perc_90_coords_x, perc_90_coords_y, nb_superpixels, perc_convex
-                ])
-
+            d_features[label] = np.array(d_features[label])
+            
         return d_features
 
 
