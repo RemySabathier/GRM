@@ -193,6 +193,16 @@ class Regions():
             mean_intensity_v = np.mean(pix_intensity_hsv[:, 2])
             d_features[label].extend([mean_intensity_h,mean_intensity_s,mean_intensity_v])
 
+            # Hue/Saturation Histogram and entropy
+            hue_hist = np.histogram(pix_intensity_hsv[:, 0],bins=5, range=(0.,1.))[0]
+            hue_hist = hue_hist/sum(hue_hist)
+            saturation_hist = np.histogram(pix_intensity_hsv[:, 1],bins=3, range=(0.,1.))[0]
+            saturation_hist = saturation_hist/sum(saturation_hist)
+            hue_entropy = entropy(hue_hist)
+            saturation_entropy = entropy(saturation_hist)
+            d_features[label].extend(list(hue_hist)+list(saturation_hist)+[hue_entropy,saturation_entropy])
+
+
             # DOOG Filters mean abs response of 12 filters
             doog_response = self.doog_response[:,coords[:,0],coords[:,1]]
             doog_mean_response = np.mean(doog_response,axis=1)
@@ -212,6 +222,11 @@ class Regions():
             nb_superpixels = region.area
             perc_convex = region.convex_area/region.area
             d_features[label].extend([nb_superpixels,perc_convex])
+
+            # Convex Hull
+            nb_convex_contours = len(measure.find_contours(region.convex_image, 0.8))
+            d_features[label].extend([nb_convex_contours])
+
 
             d_features[label] = np.array(d_features[label])
 
