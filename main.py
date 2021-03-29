@@ -114,7 +114,7 @@ class Features():
         for r_sp in remaining_sp:
             d_new_reg[r_sp] = sorted([(np.mean([self.similarity(r_sp, u, d_features) for u in d_new_reg if d_new_reg[u] == x]), x)
                                         for x in selected_reg], key=lambda tup: tup[0])[-1][1]
-
+                                        
         # Update the region array with the merges
         for k in d_new_reg:
             if d_new_reg[k] != k:
@@ -135,6 +135,10 @@ class Regions():
 
         # compute the regions_props
         self.region_props = self.compute_region_prop(self.segmentation_image)
+
+        #Load the DooG filter list
+        self.doog_filters = get_doog_filter_list()
+        self.doog_response = compute_filter_response(self.doog_filters,self.image)
 
     def compute_region_prop(self, array):
         '''Compute the region properties of a labeled array'''
@@ -210,7 +214,7 @@ class Regions():
             d_features[label].extend([nb_superpixels,perc_convex])
 
             d_features[label] = np.array(d_features[label])
-            
+
         return d_features
 
 
