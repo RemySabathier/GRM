@@ -29,7 +29,28 @@ dataset : http://www.cs.cmu.edu/afs/cs.cmu.edu/Web/People/dhoiem/projects/contex
 
 ### Generating segmentation
 
+per image : multiple segmenjtation
+varying the number of regions and the initializations
+
+Greedy algo :
+1. Randomly order superpixels
+2. assign the first $n_r$ superpixels to different regions
+3. iteratively assign each remaining superpixel based on a learned pairwise affinity function
+4. repeat step 3 several times
+
+Number of regions : $n_r \in \left{ 3, 4, 5, 7, 9, 11, 15, 20, 25 \right}$
+
+Sample pairs of same label and different label superpixels from our training set
+likelyhood that two superpixels have the same label
+logistic regression form of Adaboost
+Each likelihood function in the weak learner is obtained using kernel density estimation
+
+
+
 ### Geometric Labeling
+
+For each region (set of homogeneous and contiguous superpixels)
+Compute features 
 
 
 ## Results
