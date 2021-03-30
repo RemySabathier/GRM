@@ -21,8 +21,8 @@ from sklearn.preprocessing import OneHotEncoder
 
 if __name__ == '__main__':
 
-    X = np.load('X_train_region.npy')
-    y = np.load('y_train_region.npy')
+    X = np.load('feature_training_set/X_train_region_full.npy')
+    y = np.load('feature_training_set/y_train_region_full.npy')
     y_global, y_vertical = y[:,0], y[:,1]
     
     enc = OneHotEncoder()
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     print('Mean Accuracy Test (DUMMY): {:.3f}'.format(dummy_clf.score(X_test, y_test)))
 
     # Save the model as pickle file
-    with open('model_general.pk', 'wb') as f:
+    with open('model_general2.pk', 'wb') as f:
         pickle.dump(clf, f)
 
 
@@ -83,5 +83,5 @@ if __name__ == '__main__':
     print('Mean Accuracy Test (DUMMY): {:.3f}'.format(dummy_clf.score(X_test, y_test)))
     
     # Save the model as pickle file
-    with open('model_vertical.pk', 'wb') as f:
+    with open('model_vertical2.pk', 'wb') as f:
         pickle.dump(clf, f)

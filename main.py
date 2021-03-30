@@ -286,9 +286,9 @@ def mix_image_vertical(image,vertical_prediction_array, alpha=0.7):
 
 def compute_global_subvertical_segmentation(
     path_test,
-    model_1_path='model_1.pk',
-    model_global_path='model_general.pk',
-    model_vertical_path='model_vertical.pk',
+    model_1_path='pretrained_models/model_superpixel_similarity.pk',
+    model_global_path='pretrained_models/model_general_segmentation.pk',
+    model_vertical_path='pretrained_models/model_vertical_segmentation.pk',
     nb_hypothesis = 5,
     number_regions_hypothesis = [3,4,5,7,9,11,15,20,25],
     min_superpixel_size = 1000,
@@ -410,9 +410,9 @@ if __name__ == '__main__':
 
     # Open the image
     path_test = 'dataset\city10.jpg' 
-    model_1_path = 'model_1.pk'
-    model_global_path = 'model_general.pk'
-    model_vertical_path = 'model_vertical.pk'
+    model_1_path='pretrained_models/model_superpixel_similarity.pk'
+    model_global_path='pretrained_models/model_general_segmentation.pk'
+    model_vertical_path='pretrained_models/model_vertical_segmentation.pk'
     image = np.array(Image.open(path_test))
 
     #Hyperparameters

@@ -18,7 +18,7 @@ from utils import load_annotation
 if __name__ == '__main__':
 
     dataset_path = 'dataset'
-    model_1_path = 'model_1.pk'
+    model_1_path = 'pretrained_models/model_superpixel_similarity.pk'
     annotation_path = r'dataset\allimsegs2.mat'
     train_repartition_path = 'dataset/train_test_repartition.pk'
 
@@ -50,13 +50,11 @@ if __name__ == '__main__':
         fr = Features(superpixel_array, image, model_1_path)
 
         # Compute a set of region segmentation with *k_sel* regions
-        start = time.time()
         seg_list = [fr.segmentation(k_sel=k) for k in list_hypothesis]
         st1 = time.time()
 
         # Next: Create a list of regions classes per proposed segmentation
         reg_list = [Regions(seg, image) for seg in seg_list]
-        st2 = time.time()
 
         for regions in reg_list:
 
@@ -94,12 +92,8 @@ if __name__ == '__main__':
                 training_data_X.append(X_features[r])
                 training_data_y.append([r_global,r_vertical])
 
-        stop= time.time()
-        print('')
-        print('Segmentation: {:.3f}s / Regions: {:.3f}s / Data Generation: {:.3f}s'.format(st1-start,st2-st1,stop-st2))
-
     # Save the dataset into .npy format
     X_train = np.array(training_data_X)
     y_train = np.array(training_data_y)
-    np.save('X_train_region.npy', X_train)
-    np.save('y_train_region.npy', y_train)
+    np.save('X_train_region_full.npy', X_train)
+    np.save('y_train_region_full.npy', y_train)

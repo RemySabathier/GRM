@@ -19,9 +19,9 @@ from sklearn.dummy import DummyClassifier
 
 if __name__ == '__main__':
 
-    X = np.load('X_train300.npy')
+    X = np.load('feature_training_set/X_train_features.npy')
     X = X.reshape((-1,X.shape[-1]))
-    y = np.load('y_train300.npy').flatten()
+    y = np.load('feature_training_set/y_train_features.npy').flatten()
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, train_size=0.8, random_state=42, stratify=y)

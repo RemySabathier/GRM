@@ -58,5 +58,5 @@ if __name__ == '__main__':
     # Save the dataset into .npy format
     X_train = np.array(training_data_X)
     y_train = np.array(training_data_y)
-    np.save('X_train300.npy', X_train)
-    np.save('y_train300.npy', y_train)
+    np.save('X_train_full.npy', X_train)
+    np.save('y_train_full.npy', y_train)

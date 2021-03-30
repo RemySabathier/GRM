@@ -70,9 +70,9 @@ if __name__ == '__main__':
         test_img_path = pickle.load(f)['Test']
     
     #Parameters
-    model_1_path = 'model_1.pk'
-    model_global_path = 'model_general.pk'
-    model_vertical_path = 'model_vertical.pk'
+    model_1_path = 'pretrained_models/model_superpixel_similarity.pk'
+    model_global_path = 'pretrained_models/model_general_segmentation.pk'
+    model_vertical_path = 'pretrained_models/model_vertical_segmentation.pk'
 
     #Hyperparameters
     nb_hypothesis = 5
@@ -119,5 +119,5 @@ if __name__ == '__main__':
         }
     
     # Save the metric dictionnary
-    with open('metric_report2.pk', 'wb') as f:
+    with open('metric_report.pk', 'wb') as f:
         pickle.dump(metric_dict,f)
