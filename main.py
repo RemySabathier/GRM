@@ -14,7 +14,8 @@ import matplotlib.colors as mcolors
 from matplotlib import cm
 from utils import get_doog_filter_list, compute_filter_response
 from utils import compute_line_features
-
+import time
+import cProfile
 class Features():
 
     def __init__(self, superpixel_array, image, model_1_path):
@@ -105,21 +106,27 @@ class Features():
         d_features = self.compute_features(region_props)
 
         # Randomly order them and assign the first k to different regions
-        unique = np.unique(region_array)
+        unique = list(np.unique(region_array))
+        nb_unique = len(unique)
         np.random.shuffle(unique)
         selected_reg, remaining_sp = unique[:k_sel], unique[k_sel:]
 
         # Dict storing the new regions
-        d_new_reg = {r: r for r in selected_reg}
+        d_new_reg2 = {r: r for r in selected_reg}
+
+        X_features = np.array([[np.abs(d_features[reg_a]-d_features[reg_b]) for reg_b in unique] for reg_a in unique]).reshape((-1,23))
+        #Predict all the features
+        y_probas = self.model_1.predict_proba(X_features)[:,1].reshape((len(d_features),len(d_features)))
+
         for r_sp in remaining_sp:
-            d_new_reg[r_sp] = sorted([(np.mean([self.similarity(r_sp, u, d_features) for u in d_new_reg if d_new_reg[u] == x]), x)
+            d_new_reg2[r_sp] = sorted([(np.mean([y_probas[unique.index(r_sp),unique.index(u)] for u in d_new_reg2 if d_new_reg2[u] == x]), x)
                                         for x in selected_reg], key=lambda tup: tup[0])[-1][1]
-                                        
+
         # Update the region array with the merges
-        for k in d_new_reg:
-            if d_new_reg[k] != k:
+        for k in d_new_reg2:
+            if d_new_reg2[k] != k:
                 region_array = np.where(
-                    region_array == k, d_new_reg[k], region_array)
+                    region_array == k, d_new_reg2[k], region_array)
 
         return region_array
 
@@ -228,8 +235,8 @@ class Regions():
             d_features[label].extend([nb_convex_contours])
 
             #Line features (Geometry)
-            # geom_features = compute_line_features(region.bbox,self.image)
-            # d_features[label].extend(geom_features)
+            geom_features = compute_line_features(region.bbox,self.image)
+            d_features[label].extend(geom_features)
 
             d_features[label] = np.array(d_features[label])
 
@@ -240,42 +247,41 @@ class Regions():
 def global_prediction(image,superpixels,prediction_dict):
     '''Compute the vizual output of the global prediction'''
 
-    output = np.zeros_like(superpixels)
     output_label = np.zeros_like(superpixels)
-
-    colors = [(0, "green"), (1/2, "red"), (2/2, 'blue')]
-    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
-    alpha = 0.4
 
     for sp in np.unique(superpixels):        
         sp_prediction = np.argmax(prediction_dict[sp])
-        output = np.where(superpixels==sp,sp_prediction/2,output)
         output_label = np.where(superpixels==sp,sp_prediction,output_label)
     
-    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255., output_label
+    return mix_image_global(image,output_label), output_label
+
+def mix_image_global(image,global_prediction_array, alpha=0.4):
+    seg_array = global_prediction_array/2
+    colors = [(0, "green"), (1/2, "red"), (2/2, 'blue')]
+    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
+    return alpha*mycmap(seg_array)[:,:,:3] + (1-alpha)*image/255.
 
 
 def vertical_prediction(image,superpixels,prediction_dict,vertical_dict):
     '''Compute the vizual output of the global prediction'''
 
-    #Right, Center, Left, Porous, Solid
-
-    output = np.zeros_like(superpixels)
     output_label = np.zeros_like(superpixels)-1.
-
-    colors = [(0., "black"), (1/5, "blue"), (2/5, "orange"), (3/5,"red"), (4/5,'green'), (1.,'purple')]
-    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
-    alpha = 0.7
 
     for sp in np.unique(superpixels):
         
         sp_prediction_general = np.argmax(prediction_dict[sp])   
         if sp_prediction_general == 1:
             sp_prediction_vertical = np.argmax(vertical_dict[sp])
-            output = np.where(superpixels==sp,(1+sp_prediction_vertical)/5,output)
             output_label = np.where(superpixels==sp,sp_prediction_vertical,output_label)
-    
-    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255., output_label
+
+    return mix_image_vertical(image,output_label), output_label
+
+def mix_image_vertical(image,vertical_prediction_array, alpha=0.7):
+    seg_array = (vertical_prediction_array+1)/5
+    #Right, Center, Left, Porous, Solid
+    colors = [(0., "black"), (1/5, "blue"), (2/5, "orange"), (3/5,"red"), (4/5,'green'), (1.,'purple')]
+    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
+    return alpha*mycmap(seg_array)[:,:,:3] + (1-alpha)*image/255.
 
 
 
@@ -415,6 +421,9 @@ if __name__ == '__main__':
     number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
     min_superpixel_size = 1000
 
+    cp = cProfile.Profile()
+    cp.enable()
+
     result = compute_global_subvertical_segmentation(
         path_test,
         model_1_path,
@@ -424,6 +433,10 @@ if __name__ == '__main__':
         number_regions_hypothesis,
         min_superpixel_size
     )
+
+    cp.disable()
+    filename = 'profile.prof'  # You can change this if needed
+    cp.dump_stats(filename)
 
     # Visualization
     plt.subplot(1, 5, 1)
