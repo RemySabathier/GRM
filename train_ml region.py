@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 import random
-import scipy.io as sio
 import os
 from main import Features, Regions
 from itertools import combinations
@@ -13,28 +12,7 @@ import random
 from tqdm import tqdm
 import time
 import pickle
-
-def load_annotation(path):
-    '''Load the Matlab annotation file and return a python dict'''
-    data = sio.loadmat(path)
-    X = data['imsegs'][0]
-    N = X.shape[0]
-    d = {}
-    for n in range(N):
-        param = {}
-        file_name = X[n][0][0]
-        param['seg_image'] = X[n][2]
-        param['npixels'] = X[n][4].flatten()
-        param['vlabels'] = X[n][6]
-        param['hlabels'] = X[n][7]
-        param['labels'] = X[n][8]
-        param['vert_labels'] = X[n][9].flatten()
-        param['horz_labels'] = X[n][10].flatten()
-        param['label_names'] = X[n][11]
-        param['vert_names'] = X[n][12]
-        param['horz_names'] = X[n][13]
-        d[file_name] = param
-    return d
+from utils import load_annotation
 
 
 if __name__ == '__main__':

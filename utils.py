@@ -10,6 +10,31 @@ from skimage.color import rgb2gray
 import math
 from skimage.feature import canny
 from skimage.transform import probabilistic_hough_line
+import scipy.io as sio
+
+
+def load_annotation(path):
+    '''Load the Matlab annotation file and return a python dict'''
+    data = sio.loadmat(path)
+    X = data['imsegs'][0]
+    N = X.shape[0]
+    d = {}
+    for n in range(N):
+        param = {}
+        file_name = X[n][0][0]
+        param['seg_image'] = X[n][2]
+        param['npixels'] = X[n][4].flatten()
+        param['vlabels'] = X[n][6]
+        param['hlabels'] = X[n][7]
+        param['labels'] = X[n][8]
+        param['vert_labels'] = X[n][9].flatten()
+        param['horz_labels'] = X[n][10].flatten()
+        param['label_names'] = X[n][11]
+        param['vert_names'] = X[n][12]
+        param['horz_names'] = X[n][13]
+        d[file_name] = param
+    return d
+
 
 def Doog_filters(sigma, r, theta, gSize):
     '''DooG filter implementation'''
