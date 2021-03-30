@@ -4,7 +4,7 @@ from skimage.segmentation import felzenszwalb
 from skimage.segmentation import mark_boundaries
 from skimage.color import label2rgb
 from skimage import measure
-from skimage.color import rgb2hsv
+from skimage.color import rgb2hsv, rgb2gray
 from PIL import Image
 import random
 import scipy.io as sio
@@ -12,8 +12,8 @@ import pickle
 from scipy.stats import entropy
 import matplotlib.colors as mcolors
 from matplotlib import cm
-from skimage.filters import difference_of_gaussians
 from utils import get_doog_filter_list, compute_filter_response
+from utils import compute_line_features
 
 class Features():
 
@@ -227,6 +227,9 @@ class Regions():
             nb_convex_contours = len(measure.find_contours(region.convex_image, 0.8))
             d_features[label].extend([nb_convex_contours])
 
+            #Line features (Geometry)
+            # geom_features = compute_line_features(region.bbox,self.image)
+            # d_features[label].extend(geom_features)
 
             d_features[label] = np.array(d_features[label])
 
@@ -250,6 +253,27 @@ def global_prediction(image,superpixels,prediction_dict):
     return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255.
 
 
+def vertical_prediction(image,superpixels,prediction_dict,vertical_dict):
+    '''Compute the vizual output of the global prediction'''
+
+    #Left, Center, Right, Porous, Solid
+
+    output = np.zeros_like(superpixels)
+
+    colors = [(0., "black"), (1/5, "blue"), (2/5, "orange"), (3/5,"red"), (4/5,'green'), (1.,'purple')]
+    mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
+    alpha = 0.7
+
+    for sp in np.unique(superpixels):
+        
+        sp_prediction_general = np.argmax(prediction_dict[sp])   
+        if sp_prediction_general == 1:
+            sp_prediction_vertical = (1+np.argmax(vertical_dict[sp]))/5
+            output = np.where(superpixels==sp,sp_prediction_vertical,output)
+    
+    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255.
+
+
 
 if __name__ == '__main__':
 
@@ -269,13 +293,18 @@ if __name__ == '__main__':
     # Load the global model 
     with open(model_global_path, 'rb') as f:
         model_global = pickle.load(f)
+    
+    # Load the vertical model 
+    with open(model_vertical_path, 'rb') as f:
+        model_vertical = pickle.load(f)
 
     # Compute a set of superpixels
     superpixels = 1 + felzenszwalb(image, scale=3., sigma=0.9, min_size=1000)
 
 
     #For each superpixel, store a score per global region
-    superpixel_score = {k:[] for k in np.unique(superpixels)}
+    superpixel_score_general = {k:[] for k in np.unique(superpixels)}
+    superpixel_score_vertical = {k:[] for k in np.unique(superpixels)}
 
 
     # Initialize the class to compute regions
@@ -297,48 +326,69 @@ if __name__ == '__main__':
 
         # Estimate the likelihood of a class to be homogenous
         predict_proba_classes_general = {k:model_global.predict_proba(feat_dict[k].reshape(1,-1))[0] for k in feat_dict} 
+        predict_proba_classes_vertical = {k:model_vertical.predict_proba(feat_dict[k].reshape(1,-1))[0] for k in feat_dict} 
 
 
         #For each superpixel, look at in which region it is and add the proba_arrays to superpixel_score
         for region in d_sp_in_r:
             superpixels_inside = d_sp_in_r[region]
 
-            proba_vector = predict_proba_classes_general[region]
-            proba_vector[:3] = proba_vector[:3]/sum(proba_vector[:3])
+            proba_vector_general = predict_proba_classes_general[region]
+            proba_vector_general[:3] = proba_vector_general[:3]/sum(proba_vector_general[:3])
+            proba_vector_general[-1] = 1-proba_vector_general[-1]
+
+            proba_vector_vertical = predict_proba_classes_vertical[region]
+            proba_vector_vertical[:5] = proba_vector_vertical[:5]/sum(proba_vector_vertical[:5])
+            proba_vector_vertical[-1] = 1-proba_vector_vertical[-1]
 
             for superpixel in superpixels_inside:
-                superpixel_score[superpixel].append(proba_vector)
+                superpixel_score_general[superpixel].append(proba_vector_general)
+                superpixel_score_vertical[superpixel].append(proba_vector_vertical)
 
     
     #Superpixel prediction
-    superpixels_pred = {}
+    superpixels_pred_general = {}
+    superpixels_pred_vertical = {}
 
     #For each superpixel, compute the final score per region
-    for superpixel in superpixel_score:
-        homogeneity = [hypoth[-1] for hypoth in superpixel_score[superpixel]]
-        homogeneity = homogeneity/sum(homogeneity) #Normalize
+    for superpixel in superpixel_score_general:
+        
+        homogeneity_general = [hypoth[-1] for hypoth in superpixel_score_general[superpixel]]
+        homogeneity_general = homogeneity_general/sum(homogeneity_general) #Normalize
 
         #Compute the prediction per global class
-        prediction = np.array([h*label_prediction[:3] for h,label_prediction in zip(homogeneity,superpixel_score[superpixel])]).reshape((-1,3))
-        prediction = np.sum(prediction, axis=0)
+        prediction_general = np.array([h*label_prediction[:3] for h,label_prediction in zip(homogeneity_general,superpixel_score_general[superpixel])]).reshape((-1,3))
+        prediction_general = np.sum(prediction_general, axis=0)
+        superpixels_pred_general[superpixel] = prediction_general
 
-        superpixels_pred[superpixel] = prediction
+        homogeneity_vertical = [hypoth[-1] for hypoth in superpixel_score_vertical[superpixel]]
+        homogeneity_vertical = homogeneity_vertical/sum(homogeneity_vertical) #Normalize
+
+        #Compute the prediction per global class
+        prediction_vertical = np.array([h*label_prediction[:5] for h,label_prediction in zip(homogeneity_vertical,superpixel_score_vertical[superpixel])]).reshape((-1,5))
+        prediction_vertical = np.sum(prediction_vertical, axis=0)
+        superpixels_pred_vertical[superpixel] = prediction_vertical
 
 
     # Vizualization of the global segmentation
-    global_output = global_prediction(image,superpixels, superpixels_pred)
+    global_output = global_prediction(image,superpixels, superpixels_pred_general)
+    # Visualization of the vertical segmentation
+    vertical_output = vertical_prediction(image,superpixels, superpixels_pred_general, superpixels_pred_vertical)
 
     # Visualization
-    plt.subplot(1, 4, 1)
+    plt.subplot(1, 5, 1)
     plt.title('Superpixel Segmentation')
     plt.imshow(label2rgb(superpixels, image))
-    plt.subplot(1, 4, 2)
+    plt.subplot(1, 5, 2)
     plt.title('Region Hypothesis 1')
     plt.imshow(label2rgb(seg_list[0], image))
-    plt.subplot(1, 4, 3)
+    plt.subplot(1, 5, 3)
     plt.title('Region Hypothesis 2')
     plt.imshow(label2rgb(seg_list[1], image))
-    plt.subplot(1, 4, 4)
+    plt.subplot(1, 5, 4)
     plt.title('Global Segmentation')
     plt.imshow(global_output)
+    plt.subplot(1, 5, 5)
+    plt.title('Vertical Segmentation')
+    plt.imshow(vertical_output)
     plt.show()

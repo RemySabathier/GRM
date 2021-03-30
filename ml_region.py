@@ -27,10 +27,10 @@ if __name__ == '__main__':
     
     enc = OneHotEncoder()
 
-    #First step : Global model training
+    #First step : Global model training ###########################################
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_global, train_size=0.8, random_state=42, stratify=y)
+        X, y_global, train_size=0.8, random_state=42, stratify=y_global)
 
     #Encode in Multilabel
     y_train = enc.fit_transform(y_train.reshape(-1,1))
@@ -55,10 +55,14 @@ if __name__ == '__main__':
         pickle.dump(clf, f)
 
 
-    #Second step : Global model training
+    #Second step : Vertical model training ###########################################
+
+    #Remove 0 label from the dataset
+    X = X[y_vertical != 0]
+    y_vertical = y_vertical[y_vertical != 0]-1
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_vertical, train_size=0.8, random_state=42, stratify=y)
+        X, y_vertical, train_size=0.8, random_state=42, stratify=y_vertical)
 
     #Encode in Multilabel
     y_train = enc.fit_transform(y_train.reshape(-1,1))
@@ -70,8 +74,8 @@ if __name__ == '__main__':
     #Dummy clf for comparison
     dummy_clf = DummyClassifier(strategy="prior")
     dummy_clf.fit(X_train, y_train)
-    
 
+    
     y_pred = clf.predict(X_test)
 
     print('Mean Accuracy Train: {:.3f}'.format(clf.score(X_train, y_train)))
