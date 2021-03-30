@@ -7,6 +7,9 @@ from skimage.transform import rotate
 import matplotlib.pyplot as plt
 from scipy.signal import convolve2d
 from skimage.color import rgb2gray
+import math
+from skimage.feature import canny
+from skimage.transform import probabilistic_hough_line
 
 def Doog_filters(sigma, r, theta, gSize):
     '''DooG filter implementation'''
@@ -66,9 +69,10 @@ def compute_filter_response(filter_list,img):
     return np.array([np.abs(convolve2d(grey_img,filter,mode='same') - grey_img) for filter in filter_list])
 
     
-import math
+
 def dot(vA, vB):
     return vA[0]*vB[0]+vA[1]*vB[1]
+
 def ang(lineA, lineB):
     # Get nicer vector form
     vA = [(lineA[0][0]-lineA[1][0]), (lineA[0][1]-lineA[1][1])]
@@ -81,7 +85,7 @@ def ang(lineA, lineB):
     # Get cosine value
     cos_ = dot_prod/magA/magB
     # Get angle in radians and then convert to degrees
-    angle = math.acos(dot_prod/magB/magA)
+    angle = math.acos(np.clip(dot_prod/magB/magA,-1.+0.001,1.-0.001))
     # Basically doing angle <- angle mod 360
     ang_deg = math.degrees(angle)%360
 
@@ -101,9 +105,53 @@ def line_intersection(line1, line2):
 
     div = det(xdiff, ydiff)
     if div == 0:
-       raise Exception('lines do not intersect')
-
+        #Lines do not intersect
+        return None
+       
     d = (det(*line1), det(*line2))
     x = det(d, xdiff) / div
     y = det(d, ydiff) / div
     return (x, y)
+
+def compute_line_features(bbox,image):
+    
+    image_region = rgb2gray(image[bbox[0]:bbox[2],bbox[1]:bbox[3]])
+    (x_length, y_length) = image_region.shape
+    
+    edges = canny(image_region, 2)
+    lines = probabilistic_hough_line(edges, threshold=10, line_length=10, line_gap=3)
+
+    total = 0
+    nearly_par = 0
+    intsctn, right_inter, up_inter, far_inter, very_far_inter  = [], [], [], [], []
+    for lineA in lines:
+        for lineB in lines:
+            if lineA == lineB:
+                continue      
+            
+            if ang(lineA, lineB) <= 5:
+                nearly_par += 1
+            total += 1
+
+            intr= line_intersection(lineA, lineB)
+            if intr is not None:
+                intsctn.append(intr)
+                if intr[0]>0:
+                    right_inter.append(intr)
+                if intr[1]>0:
+                    up_inter.append(intr)
+                if intr[0]**2 + intr[1]**2 > x_length**2 + y_length**2:
+                    far_inter.append(intr)
+                if intr[0]**2 + intr[1]**2 >3*( x_length**2 + y_length**2):
+                    very_far_inter.append(intr)
+
+    # G1. Total number of straight lines
+    G1 = len(lines)
+    G2 = nearly_par/(total+0.000001)
+    G3 = total
+    G4 = len(right_inter)/(total+0.0001)
+    G5 = len(up_inter)/(total+0.00001)
+    G6 = len(far_inter)/(total+0.00001)
+    G7 = len(very_far_inter)/(total+0.00001)
+
+    return [G1,G2,G3,G4,G5,G6,G7]

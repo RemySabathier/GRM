@@ -11,7 +11,8 @@ from main import Features, Regions
 from itertools import combinations
 import random
 from tqdm import tqdm
-
+import time
+import pickle
 
 def load_annotation(path):
     '''Load the Matlab annotation file and return a python dict'''
@@ -23,7 +24,7 @@ def load_annotation(path):
         param = {}
         file_name = X[n][0][0]
         param['seg_image'] = X[n][2]
-        param['npixels'] = X[n][4]
+        param['npixels'] = X[n][4].flatten()
         param['vlabels'] = X[n][6]
         param['hlabels'] = X[n][7]
         param['labels'] = X[n][8]
@@ -41,14 +42,19 @@ if __name__ == '__main__':
     dataset_path = 'dataset'
     model_1_path = 'model_1.pk'
     annotation_path = r'dataset\allimsegs2.mat'
+    train_repartition_path = 'dataset/train_test_repartition.pk'
 
     # Create a dataset of different class regions
     # Possible Classes are : Ground, Vertical, Sky or Mixed (4)
-    # Possible Vertical Classes are: Left, Center, Right, Porous, Solid or Mixed (6)
+    # Possible Vertical Classes are: Nothing, Left, Center, Right, Porous, Solid or Mixed (7)
 
     # Step 1: Create a dataset of same-label and different-label superpixels
     annotations = load_annotation(annotation_path)
     N_img = len(annotations)  # Number of images
+
+    #Training images
+    with open(train_repartition_path, 'rb') as f:
+        training_img_path = pickle.load(f)['Train']
 
     #Hyperparameters
     nb_hypothesis = 5
@@ -58,7 +64,7 @@ if __name__ == '__main__':
 
     training_data_X, training_data_y = [], []
 
-    for img_path in tqdm(annotations):
+    for img_path in tqdm(training_img_path):
 
         image = np.array(Image.open(os.path.join(dataset_path, img_path)))
         superpixel_array = annotations[img_path]['seg_image']
@@ -66,10 +72,13 @@ if __name__ == '__main__':
         fr = Features(superpixel_array, image, model_1_path)
 
         # Compute a set of region segmentation with *k_sel* regions
+        start = time.time()
         seg_list = [fr.segmentation(k_sel=k) for k in list_hypothesis]
+        st1 = time.time()
 
         # Next: Create a list of regions classes per proposed segmentation
         reg_list = [Regions(seg, image) for seg in seg_list]
+        st2 = time.time()
 
         for regions in reg_list:
 
@@ -86,24 +95,30 @@ if __name__ == '__main__':
 
                 vertical_labels = annotations[img_path]['horz_labels'][labels_id]
                 global_labels = annotations[img_path]['vert_labels'][labels_id]
+                npixels_labels = annotations[img_path]['npixels'][labels_id]
 
-                unique_global, count_global = np.unique(global_labels,return_counts=True)                
+                count_global = [np.sum(npixels_labels[global_labels==i]) for i in range(1,4)]               
                 #If there is a main class (>80%) then tag the region with this category, otherwise tag MIX
                 if max(count_global)/sum(count_global) >= 0.8:
-                    r_global = unique_global[np.argmax(count_global)]
+                    r_global = np.argmax(count_global)
                 else:
                     r_global = 3 #The MIXED label
 
-                unique_vertical, count_vertical = np.unique(vertical_labels,return_counts=True)                
+
+                count_vertical = [np.sum(npixels_labels[vertical_labels==i]) for i in range(0,6)]          
                 #If there is a main class (>80%) then tag the region with this category, otherwise tag MIX
                 if max(count_vertical)/sum(count_vertical) >= 0.8:
-                    r_vertical = unique_vertical[np.argmax(count_vertical)]
+                    r_vertical = np.argmax(count_vertical)
                 else:
-                    r_vertical = 5 #The MIXED label
+                    r_vertical = 6 #The MIXED label
             
                 #Add the region to the training set
                 training_data_X.append(X_features[r])
                 training_data_y.append([r_global,r_vertical])
+
+        stop= time.time()
+        print('')
+        print('Segmentation: {:.3f}s / Regions: {:.3f}s / Data Generation: {:.3f}s'.format(st1-start,st2-st1,stop-st2))
 
     # Save the dataset into .npy format
     X_train = np.array(training_data_X)
