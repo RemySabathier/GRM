@@ -241,24 +241,27 @@ def global_prediction(image,superpixels,prediction_dict):
     '''Compute the vizual output of the global prediction'''
 
     output = np.zeros_like(superpixels)
+    output_label = np.zeros_like(superpixels)
 
     colors = [(0, "green"), (1/2, "red"), (2/2, 'blue')]
     mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
     alpha = 0.4
 
-    for sp in np.unique(superpixels):
-        sp_prediction = np.argmax(prediction_dict[sp])/2
-        output = np.where(superpixels==sp,sp_prediction,output)
+    for sp in np.unique(superpixels):        
+        sp_prediction = np.argmax(prediction_dict[sp])
+        output = np.where(superpixels==sp,sp_prediction/2,output)
+        output_label = np.where(superpixels==sp,sp_prediction,output_label)
     
-    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255.
+    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255., output_label
 
 
 def vertical_prediction(image,superpixels,prediction_dict,vertical_dict):
     '''Compute the vizual output of the global prediction'''
 
-    #Left, Center, Right, Porous, Solid
+    #Right, Center, Left, Porous, Solid
 
     output = np.zeros_like(superpixels)
+    output_label = np.zeros_like(superpixels)-1.
 
     colors = [(0., "black"), (1/5, "blue"), (2/5, "orange"), (3/5,"red"), (4/5,'green'), (1.,'purple')]
     mycmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
@@ -268,25 +271,37 @@ def vertical_prediction(image,superpixels,prediction_dict,vertical_dict):
         
         sp_prediction_general = np.argmax(prediction_dict[sp])   
         if sp_prediction_general == 1:
-            sp_prediction_vertical = (1+np.argmax(vertical_dict[sp]))/5
-            output = np.where(superpixels==sp,sp_prediction_vertical,output)
+            sp_prediction_vertical = np.argmax(vertical_dict[sp])
+            output = np.where(superpixels==sp,(1+sp_prediction_vertical)/5,output)
+            output_label = np.where(superpixels==sp,sp_prediction_vertical,output_label)
     
-    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255.
+    return alpha*mycmap(output)[:,:,:3] + (1-alpha)*image/255., output_label
 
 
 
-if __name__ == '__main__':
+def compute_global_subvertical_segmentation(
+    path_test,
+    model_1_path='model_1.pk',
+    model_global_path='model_general.pk',
+    model_vertical_path='model_vertical.pk',
+    nb_hypothesis = 5,
+    number_regions_hypothesis = [3,4,5,7,9,11,15,20,25],
+    min_superpixel_size = 1000,
 
-    # Open the image
-    path_test = 'dataset_test\city10.jpg' #'dataset/structure31.jpg'
-    model_1_path = 'model_1.pk'
-    model_global_path = 'model_general.pk'
-    model_vertical_path = 'model_vertical.pk'
+):
+    '''
+    Main function computing the global and subvertical segmentation
+    Params:
+    path_test : path of the image to segment
+    model_1_path: path of the superpixel_affinity saved model
+    model_global_path: path of the global segmentation saved model
+    model_vertical_path: path of the sub-vertical segmentation saved model
+    nb_hypothesis: number of different segmentations to perform to get predictions
+    number_region_hypothesis: list of number of desired regions at the end of last algorithm
+    min_superpixel_size: minimum size of superpixels for the initial segmentation
+    '''
+    
     image = np.array(Image.open(path_test))
-
-    #Hyperparameters
-    nb_hypothesis = 5
-    number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
 
     list_hypothesis = random.sample(number_regions_hypothesis,nb_hypothesis)
 
@@ -299,7 +314,7 @@ if __name__ == '__main__':
         model_vertical = pickle.load(f)
 
     # Compute a set of superpixels
-    superpixels = 1 + felzenszwalb(image, scale=3., sigma=0.9, min_size=1000)
+    superpixels = 1 + felzenszwalb(image, scale=3., sigma=0.9, min_size=min_superpixel_size)
 
 
     #For each superpixel, store a score per global region
@@ -371,24 +386,59 @@ if __name__ == '__main__':
 
 
     # Vizualization of the global segmentation
-    global_output = global_prediction(image,superpixels, superpixels_pred_general)
+    global_output, g_label_map = global_prediction(image,superpixels, superpixels_pred_general)
     # Visualization of the vertical segmentation
-    vertical_output = vertical_prediction(image,superpixels, superpixels_pred_general, superpixels_pred_vertical)
+    vertical_output, v_label_map = vertical_prediction(image,superpixels, superpixels_pred_general, superpixels_pred_vertical)
+
+    result = {
+        'global_output':global_output,
+        'g_label_map':g_label_map,
+        'vertical_output':vertical_output,
+        'v_label_map':v_label_map,
+        'initial_superpixels':superpixels,
+        'segmentation_hyp':seg_list,
+        }
+    return result
+
+
+if __name__ == '__main__':
+
+    # Open the image
+    path_test = 'dataset_test\city10.jpg' 
+    model_1_path = 'model_1.pk'
+    model_global_path = 'model_general.pk'
+    model_vertical_path = 'model_vertical.pk'
+    image = np.array(Image.open(path_test))
+
+    #Hyperparameters
+    nb_hypothesis = 5
+    number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
+    min_superpixel_size = 1000
+
+    result = compute_global_subvertical_segmentation(
+        path_test,
+        model_1_path,
+        model_global_path,
+        model_vertical_path,
+        nb_hypothesis,
+        number_regions_hypothesis,
+        min_superpixel_size
+    )
 
     # Visualization
     plt.subplot(1, 5, 1)
     plt.title('Superpixel Segmentation')
-    plt.imshow(label2rgb(superpixels, image))
+    plt.imshow(label2rgb(result['initial_superpixels'], image))
     plt.subplot(1, 5, 2)
     plt.title('Region Hypothesis 1')
-    plt.imshow(label2rgb(seg_list[0], image))
+    plt.imshow(label2rgb(result['segmentation_hyp'][0], image))
     plt.subplot(1, 5, 3)
     plt.title('Region Hypothesis 2')
-    plt.imshow(label2rgb(seg_list[1], image))
+    plt.imshow(label2rgb(result['segmentation_hyp'][1], image))
     plt.subplot(1, 5, 4)
     plt.title('Global Segmentation')
-    plt.imshow(global_output)
+    plt.imshow(result['global_output'])
     plt.subplot(1, 5, 5)
     plt.title('Vertical Segmentation')
-    plt.imshow(vertical_output)
+    plt.imshow(result['vertical_output'])
     plt.show()
