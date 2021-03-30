@@ -1,5 +1,4 @@
-# Difference of Absolute Gaussians filters implementation
-# Code largely inspired : https://github.com/teeters/GeometricContext
+# Utils functions for different part of the projects (feature, visualization, ...)
 
 from skimage.filters import gaussian
 import numpy as np

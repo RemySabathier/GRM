@@ -15,7 +15,6 @@ from matplotlib import cm
 from utils import get_doog_filter_list, compute_filter_response
 from utils import compute_line_features
 import time
-import cProfile
 class Features():
 
     def __init__(self, superpixel_array, image, model_1_path):
@@ -410,7 +409,7 @@ def compute_global_subvertical_segmentation(
 if __name__ == '__main__':
 
     # Open the image
-    path_test = 'dataset_test\city10.jpg' 
+    path_test = 'dataset\city10.jpg' 
     model_1_path = 'model_1.pk'
     model_global_path = 'model_general.pk'
     model_vertical_path = 'model_vertical.pk'
@@ -421,9 +420,6 @@ if __name__ == '__main__':
     number_regions_hypothesis = [3,4,5,7,9,11,15,20,25]
     min_superpixel_size = 1000
 
-    cp = cProfile.Profile()
-    cp.enable()
-
     result = compute_global_subvertical_segmentation(
         path_test,
         model_1_path,
@@ -433,10 +429,6 @@ if __name__ == '__main__':
         number_regions_hypothesis,
         min_superpixel_size
     )
-
-    cp.disable()
-    filename = 'profile.prof'  # You can change this if needed
-    cp.dump_stats(filename)
 
     # Visualization
     plt.subplot(1, 5, 1)
